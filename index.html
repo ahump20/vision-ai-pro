@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vision AI Pro - Advanced Body & Voice Analysis</title>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.0/dist/pose-detection.min.js"></script>
+      <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                :root {
+                              --bg-primary: #0a0a0f;
+                              --bg-secondary: #12121a;
+                              --bg-card: #1a1a24;
+                              --accent: #ff6b35;
+                              --accent-glow: rgba(255, 107, 53, 0.3);
+                              --success: #22c55e;
+                              --warning: #eab308;
+                              --danger: #ef4444;
+                              --text-primary: #ffffff;
+                              --text-secondary: #a1a1aa;
+                              --border: #2a2a3a;
+                }
+                body {
+                              font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                              background: var(--bg-primary);
+                              color: var(--text-primary);
+                              min-height: 100vh;
+                              overflow-x: hidden;
+                }
+                .header {
+                              background: linear-gradient(180deg, var(--bg-secondary) 0%, transparent 100%);
+                              padding: 1rem 2rem;
+                              display: flex;
+                              justify-content: space-between;
+                              align-items: center;
+                              border-bottom: 1px solid var(--border);
+                }
+                .logo {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.75rem;
+                              font-size: 1.5rem;
+                              font-weight: 700;
+                }
+                .logo-icon {
+                              width: 40px;
+                              height: 40px;
+                              background: linear-gradient(135deg, var(--accent), #ff8f6b);
+                              border-radius: 10px;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              font-size: 1.25rem;
+                }
+                .status-bar {
+                              display: flex;
+                              gap: 1.5rem;
+                              align-items: center;
+                }
+                .status-item {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                              padding: 0.5rem 1rem;
+                              background: var(--bg-card);
+                              border-radius: 8px;
+                              font-size: 0.875rem;
+                }
+                .status-dot {
+                              width: 8px;
+                              height: 8px;
+                              border-radius: 50%;
+                              animation: pulse 2s infinite;
+                }
+                .status-dot.ready { background: var(--success); }
+                .status-dot.analyzing { background: var(--accent); }
+                .status-dot.error { background: var(--danger); }
+                @keyframes pulse {
+                              0%, 100% { opacity: 1; }
+                              50% { opacity: 0.5; }
+                }
+                .main-container {
+                              display: grid;
+                              grid-template-columns: 1fr 380px;
+                              gap: 1.5rem;
+                              padding: 1.5rem 2rem;
+                              max-width: 1800px;
+                              margin: 0 auto;
+                }
+                .video-section {
+                              display: flex;
+                              flex-direction: column;
+                              gap: 1rem;
+                }
+                .controls-bar {
+                              display: flex;
+                              gap: 1rem;
+                              flex-wrap: wrap;
+                              align-items: center;
+                }
+                .control-group {
+                              display: flex;
+                              flex-direction: column;
+                              gap: 0.25rem;
+                }
+                .control-label {
+                              font-size: 0.75rem;
+                              color: var(--text-secondary);
+                              text-transform: uppercase;
+                              letter-spacing: 0.05em;
+                }
+                select, .btn {
+                              background: var(--bg-card);
+                              border: 1px solid var(--border);
+                              color: var(--text-primary);
+                              padding: 0.625rem 1rem;
+                              border-radius: 8px;
+                              font-size: 0.875rem;
+                              cursor: pointer;
+                              transition: all 0.2s;
+                }
+                select:hover, .btn:hover {
+                              border-color: var(--accent);
+                }
+                select:focus, .btn:focus {
+                              outline: none;
+                              border-color: var(--accent);
+                              box-shadow: 0 0 0 3px var(--accent-glow);
+                }
+                .btn {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                              font-weight: 500;
+                }
+                .btn-primary {
+                              background: var(--accent);
+                              border-color: var(--accent);
+                }
+                .btn-primary:hover {
+                              background: #ff8555;
+                }
+                .btn-success {
+                              background: var(--success);
+                              border-color: var(--success);
+                }
+                .btn-danger {
+                              background: var(--danger);
+                              border-color: var(--danger);
+                }
+                .btn-outline {
+                              background: transparent;
+                }
+                .video-container {
+                              position: relative;
+                              background: var(--bg-card);
+                              border-radius: 16px;
+                              overflow: hidden;
+                              aspect-ratio: 16/9;
+                              border: 1px solid var(--border);
+                }
+                #videoElement {
+                              width: 100%;
+                              height: 100%;
+                              object-fit: cover;
+                              transform: scaleX(-1);
+                }
+                #poseCanvas {
+                              position: absolute;
+                              top: 0;
+                              left: 0;
+                              width: 100%;
+                              height: 100%;
+                              pointer-events: none;
+                }
+                .video-overlay {
+                              position: absolute;
+                              top: 1rem;
+                              left: 1rem;
+                              right: 1rem;
+                              display: flex;
+                              justify-content: space-between;
+                              pointer-events: none;
+                }
+                .badge {
+                              padding: 0.375rem 0.75rem;
+                              border-radius: 6px;
+                              font-size: 0.75rem;
+                              font-weight: 600;
+                              display: flex;
+                              align-items: center;
+                              gap: 0.375rem;
+                              pointer-events: auto;
+                }
+                .badge-live {
+                              background: rgba(34, 197, 94, 0.2);
+                              color: var(--success);
+                              border: 1px solid var(--success);
+                }
+                .badge-mode {
+                              background: rgba(255, 107, 53, 0.2);
+                              color: var(--accent);
+                              border: 1px solid var(--accent);
+                }
+                .badge-calibrated {
+                              background: rgba(34, 197, 94, 0.2);
+                              color: var(--success);
+                              border: 1px solid var(--success);
+                }
+                .coaching-panel {
+                              background: var(--bg-card);
+                              border-radius: 12px;
+                              padding: 1rem;
+                              border: 1px solid var(--border);
+                }
+                .panel-header {
+                              display: flex;
+                              justify-content: space-between;
+                              align-items: center;
+                              margin-bottom: 1rem;
+                              padding-bottom: 0.75rem;
+                              border-bottom: 1px solid var(--border);
+                }
+                .panel-title {
+                              font-size: 0.875rem;
+                              font-weight: 600;
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                }
+                .coaching-tips {
+                              display: flex;
+                              flex-direction: column;
+                              gap: 0.75rem;
+                              max-height: 200px;
+                              overflow-y: auto;
+                }
+                .tip-item {
+                              display: flex;
+                              gap: 0.75rem;
+                              padding: 0.75rem;
+                              background: var(--bg-secondary);
+                              border-radius: 8px;
+                              font-size: 0.8125rem;
+                              line-height: 1.4;
+                }
+                .tip-icon {
+                              flex-shrink: 0;
+                              width: 24px;
+                              height: 24px;
+                              border-radius: 6px;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              font-size: 0.875rem;
+                }
+                .tip-icon.success { background: rgba(34, 197, 94, 0.2); }
+                .tip-icon.warning { background: rgba(234, 179, 8, 0.2); }
+                .tip-icon.info { background: rgba(59, 130, 246, 0.2); }
+                .sidebar {
+                              display: flex;
+                              flex-direction: column;
+                              gap: 1rem;
+                }
+                .metrics-card {
+                              background: var(--bg-card);
+                              border-radius: 12px;
+                              padding: 1rem;
+                              border: 1px solid var(--border);
+                }
+                .metrics-header {
+                              display: flex;
+                              justify-content: space-between;
+                              align-items: center;
+                              margin-bottom: 1rem;
+                }
+                .metrics-title {
+                              font-size: 0.8125rem;
+                              font-weight: 600;
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                              color: var(--text-secondary);
+                }
+                .metrics-status {
+                              font-size: 0.6875rem;
+                              padding: 0.25rem 0.5rem;
+                              border-radius: 4px;
+                              font-weight: 600;
+                              text-transform: uppercase;
+                }
+                .metrics-status.low { background: rgba(234, 179, 8, 0.2); color: var(--warning); }
+                .metrics-status.medium { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+                .metrics-status.high { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+                .metric-row {
+                              display: flex;
+                              justify-content: space-between;
+                              align-items: center;
+                              padding: 0.625rem 0;
+                              border-bottom: 1px solid var(--border);
+                }
+                .metric-row:last-child { border-bottom: none; }
+                .metric-name {
+                              font-size: 0.8125rem;
+                              color: var(--text-secondary);
+                }
+                .metric-value {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                              font-size: 0.875rem;
+                              font-weight: 600;
+                }
+                .metric-change {
+                              font-size: 0.75rem;
+                              font-weight: 500;
+                }
+                .metric-change.positive { color: var(--success); }
+                .metric-change.negative { color: var(--danger); }
+                .progress-bar {
+                              width: 60px;
+                              height: 6px;
+                              background: var(--bg-secondary);
+                              border-radius: 3px;
+                              overflow: hidden;
+                }
+                .progress-fill {
+                              height: 100%;
+                              border-radius: 3px;
+                              transition: width 0.3s ease;
+                }
+                .progress-fill.low { background: var(--danger); }
+                .progress-fill.medium { background: var(--warning); }
+                .progress-fill.high { background: var(--success); }
+                .chart-container {
+                              height: 120px;
+                              margin-top: 1rem;
+                              position: relative;
+                }
+                #historyChart {
+                              width: 100%;
+                              height: 100%;
+                }
+                .chart-legend {
+                              display: flex;
+                              gap: 1rem;
+                              justify-content: center;
+                              margin-top: 0.5rem;
+                              font-size: 0.75rem;
+                }
+                .legend-item {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.375rem;
+                }
+                .legend-dot {
+                              width: 8px;
+                              height: 8px;
+                              border-radius: 50%;
+                }
+                .privacy-notice {
+                              background: var(--bg-secondary);
+                              padding: 0.75rem;
+                              border-radius: 8px;
+                              font-size: 0.75rem;
+                              color: var(--text-secondary);
+                              display: flex;
+                              gap: 0.5rem;
+                              align-items: flex-start;
+                }
+                .privacy-notice strong {
+                              color: var(--text-primary);
+                }
+                .session-log {
+                              max-height: 150px;
+                              overflow-y: auto;
+                }
+                .log-entry {
+                              display: flex;
+                              gap: 0.75rem;
+                              padding: 0.5rem 0;
+                              font-size: 0.75rem;
+                              border-bottom: 1px solid var(--border);
+                }
+                .log-time {
+                              color: var(--text-secondary);
+                              font-family: monospace;
+                              flex-shrink: 0;
+                }
+                .log-type {
+                              padding: 0.125rem 0.375rem;
+                              border-radius: 4px;
+                              font-size: 0.625rem;
+                              font-weight: 600;
+                              text-transform: uppercase;
+                              flex-shrink: 0;
+                }
+                .log-type.session { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+                .log-type.system { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+                .log-type.coaching { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+                .log-type.recording { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+                @media (max-width: 1200px) {
+                              .main-container {
+                                                grid-template-columns: 1fr;
+                              }
+                              .sidebar {
+                                                display: grid;
+                                                grid-template-columns: repeat(2, 1fr);
+                              }
+                }
+                @media (max-width: 768px) {
+                              .sidebar {
+                                                grid-template-columns: 1fr;
+                              }
+                              .controls-bar {
+                                                flex-direction: column;
+                                                align-items: stretch;
+                              }
+                }
+                .range-slider {
+                              width: 100px;
+                              accent-color: var(--accent);
+                }
+                .slider-group {
+                              display: flex;
+                              align-items: center;
+                              gap: 0.5rem;
+                }
+                .slider-value {
+                              font-size: 0.75rem;
+                              color: var(--text-secondary);
+                              min-width: 35px;
+                }
+            </style>
+  </head>
+  <body>
+        <header class="header">
+                  <div class="logo">
+                                <div class="logo-icon">🔥</div>div>
+                                <span>Vision AI <span style="color: var(--accent)">PRO</span></span>
+                  </div>div>
+                <div class="status-bar">
+                            <div class="status-item">
+                                            <span class="status-dot" id="statusDot"></span>
+                                            <span id="statusText">Ready</span>
+                            </div>div>
+                            <div class="status-item">
+                                            <span>FPS:</span>
+                                            <span id="fpsCounter">0</span>
+                            </div>div>
+                            <div class="status-item" id="recordingIndicator" style="display: none;">
+                                            <span class="status-dot" style="background: var(--danger);"></span>
+                                            <span>REC</span>
+                            </div>div>
+                </div>div>
+        </header>header>
+  
+      <main class="main-container">
+              <div class="video-section">
+                          <div class="controls-bar">
+                                          <div class="control-group">
+                                                              <span class="control-label">Mode</span>
+                                                              <select id="modeSelect">
+                                                                                      <option value="body">Body Language</option>option>
+                                                                                      <option value="sports">Sports Performance</option>option>
+                                                                                      <option value="fitness">Fitness Form</option>option>
+                                                                                      <option value="presentation">Presentation Coach</option>option>
+                                                              </select>select>
+                                          </div>div>
+                                          <div class="control-group">
+                                                              <span class="control-label">Reference</span>
+                                                              <select id="referenceSelect">
+                                                                                      <option value="neutral">Neutral Stance</option>option>
+                                                                                      <option value="presentation">Presentation Stance</option>option>
+                                                                                      <option value="pitching">Pitching Stance</option>option>
+                                                                                      <option value="squat">Squat Form</option>option>
+                                                                                      <option value="plank">Plank Position</option>option>
+                                                              </select>select>
+                                          </div>div>
+                                          <div class="control-group" style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                                                              <button class="btn btn-primary" id="startBtn">▶ Start</button>button>
+                                                              <button class="btn" id="stopBtn" disabled>⏹ Stop</button>button>
+                                                              <button class="btn" id="calibrateBtn" disabled>◎ Calibrate</button>button>
+                                                              <button class="btn" id="recordBtn" disabled>⏺ Record</button>button>
+                                          </div>div>
+                                          <div class="control-group">
+                                                              <span class="control-label">Overlay</span>
+                                                              <div class="slider-group">
+                                                                                      <input type="range" class="range-slider" id="overlayOpacity" min="0" max="100" value="70">
+                                                                                      <span class="slider-value" id="opacityValue">70%</span>
+                                                              </div>div>
+                                          </div>div>
+                          </div>div>
+              
+                          <div class="video-container">
+                                          <video id="videoElement" autoplay playsinline></video>video>
+                                          <canvas id="poseCanvas"></canvas>canvas>
+                                          <div class="video-overlay">
+                                                              <div class="badge badge-live" id="liveBadge" style="display: none;">
+                                                                                      <span style="width: 6px; height: 6px; background: currentColor; border-radius: 50%;"></span>
+                                                                                      LIVE
+                                                              </div>div>
+                                                              <div style="display: flex; gap: 0.5rem;">
+                                                                                      <div class="badge badge-mode" id="modeBadge">Body Language</div>div>
+                                                                                      <div class="badge badge-calibrated" id="calibratedBadge" style="display: none;">✓ Calibrated</div>div>
+                                                              </div>div>
+                                          </div>div>
+                          </div>div>
+              
+                          <div class="coaching-panel">
+                                          <div class="panel-header">
+                                                              <div class="panel-title">💡 Real-Time Coaching</div>div>
+                                                              <button class="btn btn-outline" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;" id="clearTipsBtn">Clear</button>button>
+                                          </div>div>
+                                          <div class="coaching-tips" id="coachingTips">
+                                                              <div class="tip-item">
+                                                                                      <div class="tip-icon info">ℹ️</div>div>
+                                                                                      <div>Click "Start" to begin your session. Position yourself in the camera frame and wait for pose detection to initialize.</div>
+                                                              </div>
+                                          </div>
+                          </div>
+              </div>
+      
+              <div class="sidebar">
+                            <div class="metrics-card">
+                                              <div class="metrics-header">
+                                                                    <div class="metrics-title">⚡ Posture & Balance</div>
+                                                                    <span class="metrics-status" id="postureStatus">--</span>span>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Shoulder Symmetry</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <span id="shoulderSymmetry">--</span>span>/100
+                                                                                              <span class="metric-change" id="shoulderChange"></span>span>
+                                                                    </div>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Hip Alignment</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <span id="hipAlignment">--</span>span>/100
+                                                                                              <span class="metric-change" id="hipChange"></span>span>
+                                                                    </div>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Spine Angle</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <span id="spineAngle">--</span>span>°
+                                                                                              <span class="metric-change" id="spineChange"></span>span>
+                                                                    </div>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Stability Score</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <div class="progress-bar">
+                                                                                                                            <div class="progress-fill" id="stabilityBar" style="width: 0%;"></div>
+                                                                                                </div>
+                                                                                              <span id="stabilityScore">--</span>span>
+                                                                    </div>
+                                              </div>
+                            </div>
+
+                            <div class="metrics-card">
+                                              <div class="metrics-header">
+                                                                    <div class="metrics-title">🎤 Voice Signals</div>
+                                                                    <span class="metrics-status" id="voiceStatus">--</span>span>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Energy Level</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <div class="progress-bar">
+                                                                                                                            <div class="progress-fill" id="energyBar" style="width: 0%;"></div>
+                                                                                                </div>
+                                                                                              <span id="energyLevel">--</span>span>/100
+                                                                    </div>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Steadiness</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <span id="steadiness">--</span>span>
+                                                                    </div>
+                                              </div>
+                                              <div class="metric-row">
+                                                                    <span class="metric-name">Volume</span>span>
+                                                                    <div class="metric-value">
+                                                                                              <div class="progress-bar">
+                                                                                                                            <div class="progress-fill" id="volumeBar" style="width: 0%;"></div>
+                                                                                                </div>
+                                                                                              <span id="volumeLevel">--</span>span>dB
+                                                                    </div>
+                                              </div>
+                            </div>
+
+                            <div class="metrics-card">
+                                              <div class="metrics-header">
+                                                                    <div class="metrics-title">📊 Signal History</div>
+                                              </div>
+                                              <div class="chart-container">
+                                                                    <canvas id="historyChart"></canvas>canvas>
+                                              </div>
+                                              <div class="chart-legend">
+                                                                    <div class="legend-item">
+                                                                                              <div class="legend-dot" style="background: var(--accent);"></div>
+                                                                                              <span>Stability</span>span>
+                                                                    </div>
+                                                                    <div class="legend-item">
+                                                                                              <div class="legend-dot" style="background: var(--success);"></div>
+                                                                                              <span>Energy</span>span>
+                                                                    </div>
+                                              </div>
+                            </div>
+
+                            <div class="metrics-card">
+                                              <div class="metrics-header">
+                                                                    <div class="metrics-title">📋 Session Log</div>
+                                              </div>
+                                              <div class="session-log" id="sessionLog"></div>
+                            </div>
+
+                            <div class="privacy-notice">
+                                              <span>🔒</span>span>
+                                              <div>
+                                                                    <strong>Privacy:</strong> All processing runs locally in your browser. No video or audio leaves your device. This tool analyzes observable signals only.
+                                              </div>
+                            </div>
+              </div>
+      </main>main>
+  
+      <script>
+                // Vision AI Pro - Main Application
+                class VisionAIPro {
+                              constructor() {
+                                                this.video = document.getElementById('videoElement');
+                                                this.canvas = document.getElementById('poseCanvas');
+                                                this.ctx = this.canvas.getContext('2d');
+                                                this.detector = null;
+                                                this.isRunning = false;
+                                                this.isRecording = false;
+                                                this.isCalibrated = false;
+                                                this.baseline = null;
+                                                this.frameCount = 0;
+                                                this.lastFpsTime = Date.now();
+                                                this.fps = 0;
+                                                this.historyData = { stability: [], energy: [] };
+                                                this.maxHistoryPoints = 50;
+                                                this.audioContext = null;
+                                                this.analyser = null;
+                                                this.sessionStartTime = null;
+                                                this.lastCoachingTime = 0;
+                                                this.coachingCooldown = 5000;
+                                                this.poseHistory = [];
+                                                this.initElements();
+                                                this.initEventListeners();
+                                                this.addLog('system', 'Vision AI Pro initialized');
+                              }
+
+                              initElements() {
+                                                this.startBtn = document.getElementById('startBtn');
+                                                this.stopBtn = document.getElementById('stopBtn');
+                                                this.calibrateBtn = document.getElementById('calibrateBtn');
+                                                this.recordBtn = document.getElementById('recordBtn');
+                                                this.modeSelect = document.getElementById('modeSelect');
+                                                this.referenceSelect = document.getElementById('referenceSelect');
+                                                this.overlayOpacity = document.getElementById('overlayOpacity');
+                                                this.opacityValue = document.getElementById('opacityValue');
+                                                this.statusDot = document.getElementById('statusDot');
+                                                this.statusText = document.getElementById('statusText');
+                                                this.fpsCounter = document.getElementById('fpsCounter');
+                                                this.liveBadge = document.getElementById('liveBadge');
+                                                this.modeBadge = document.getElementById('modeBadge');
+                                                this.calibratedBadge = document.getElementById('calibratedBadge');
+                                                this.recordingIndicator = document.getElementById('recordingIndicator');
+                                                this.coachingTips = document.getElementById('coachingTips');
+                                                this.sessionLog = document.getElementById('sessionLog');
+                                                this.historyChart = document.getElementById('historyChart');
+                                                this.chartCtx = this.historyChart.getContext('2d');
+                              }
+
+                              initEventListeners() {
+                                                this.startBtn.addEventListener('click', () => this.start());
+                                                this.stopBtn.addEventListener('click', () => this.stop());
+                                                this.calibrateBtn.addEventListener('click', () => this.calibrate());
+                                                this.recordBtn.addEventListener('click', () => this.toggleRecording());
+                                                this.modeSelect.addEventListener('change', (e) => this.changeMode(e.target.value));
+                                                this.referenceSelect.addEventListener('change', (e) => this.changeReference(e.target.value));
+                                                this.overlayOpacity.addEventListener('input', (e) => {
+                                                                      this.opacityValue.textContent = e.target.value + '%';
+                                                });
+                                                document.getElementById('clearTipsBtn').addEventListener('click', () => this.clearTips());
+                              }
+
+                              async start() {
+                                                try {
+                                                                      this.setStatus('analyzing', 'Initializing...');
+                                                                      const stream = await navigator.mediaDevices.getUserMedia({
+                                                                                                video: { width: 1280, height: 720, facingMode: 'user' },
+                                                                                                audio: true
+                                                                        });
+                                                                      this.video.srcObject = stream;
+                                                                      await this.video.play();
+                                                                      this.canvas.width = this.video.videoWidth;
+                                                                      this.canvas.height = this.video.videoHeight;
+                                                                      await this.initPoseDetection();
+                                                                      await this.initAudioAnalysis(stream);
+                                                                      this.isRunning = true;
+                                                                      this.sessionStartTime = Date.now();
+                                                                      this.startBtn.disabled = true;
+                                                                      this.stopBtn.disabled = false;
+                                                                      this.calibrateBtn.disabled = false;
+                                                                      this.recordBtn.disabled = false;
+                                                                      this.liveBadge.style.display = 'flex';
+                                                                      this.setStatus('analyzing', 'Analyzing');
+                                                                      this.addLog('session', 'Session started in ' + this.modeSelect.options[this.modeSelect.selectedIndex].text + ' mode');
+                                                                      this.addCoachingTip('success', 'Session started! Stand naturally and ensure your full body is visible in the frame.');
+                                                                      this.detectLoop();
+                                                } catch (error) {
+                                                                      console.error('Start error:', error);
+                                                                      this.setStatus('error', 'Error: ' + error.message);
+                                                                      this.addLog('system', 'Error: ' + error.message);
+                                                }
+                              }
+
+                              async initPoseDetection() {
+                                                this.addLog('system', 'Loading MoveNet model...');
+                                                const model = poseDetection.SupportedModels.MoveNet;
+                                                const detectorConfig = {
+                                                                      modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+                                                                      enableSmoothing: true,
+                                                                      minPoseScore: 0.25
+                                                };
+                                                this.detector = await poseDetection.createDetector(model, detectorConfig);
+                                                this.addLog('system', 'MoveNet Thunder model loaded');
+                              }
+
+                              async initAudioAnalysis(stream) {
+                                                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                                                const source = this.audioContext.createMediaStreamSource(stream);
+                                                this.analyser = this.audioContext.createAnalyser();
+                                                this.analyser.fftSize = 2048;
+                                                this.analyser.smoothingTimeConstant = 0.8;
+                                                source.connect(this.analyser);
+                                                this.addLog('system', 'Audio analysis initialized');
+                              }
+
+                              stop() {
+                                                this.isRunning = false;
+                                                if (this.video.srcObject) {
+                                                                      this.video.srcObject.getTracks().forEach(track => track.stop());
+                                                }
+                                                if (this.audioContext) {
+                                                                      this.audioContext.close();
+                                                }
+                                                this.startBtn.disabled = false;
+                                                this.stopBtn.disabled = true;
+                                                this.calibrateBtn.disabled = true;
+                                                this.recordBtn.disabled = true;
+                                                this.liveBadge.style.display = 'none';
+                                                this.setStatus('ready', 'Stopped');
+                                                this.addLog('session', 'Session stopped');
+                                                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                              }
+
+                              calibrate() {
+                                                if (this.poseHistory.length > 0) {
+                                                                      this.baseline = this.calculateMetrics(this.poseHistory[this.poseHistory.length - 1]);
+                                                                      this.isCalibrated = true;
+                                                                      this.calibratedBadge.style.display = 'flex';
+                                                                      this.addLog('session', 'Baseline calibrated');
+                                                                      this.addCoachingTip('success', 'Baseline set! Your current posture is now the reference point. Metrics will show changes from this position.');
+                                                }
+                              }
+
+                              toggleRecording() {
+                                                this.isRecording = !this.isRecording;
+                                                this.recordingIndicator.style.display = this.isRecording ? 'flex' : 'none';
+                                                this.recordBtn.textContent = this.isRecording ? '⏹ Stop Rec' : '⏺ Record';
+                                                this.recordBtn.classList.toggle('btn-danger', this.isRecording);
+                                                this.addLog('recording', this.isRecording ? 'Recording started' : 'Recording stopped');
+                              }
+
+                              changeMode(mode) {
+                                                const modeNames = {
+                                                                      body: 'Body Language',
+                                                                      sports: 'Sports Performance',
+                                                                      fitness: 'Fitness Form',
+                                                                      presentation: 'Presentation Coach'
+                                                };
+                                                this.modeBadge.textContent = modeNames[mode];
+                                                this.addLog('session', 'Mode changed to ' + modeNames[mode]);
+                                                this.updateReferenceOptions(mode);
+                              }
+
+                              updateReferenceOptions(mode) {
+                                                const options = {
+                                                                      body: [
+                                                                        { value: 'neutral', text: 'Neutral Stance' },
+                                                                        { value: 'confident', text: 'Confident Posture' },
+                                                                        { value: 'open', text: 'Open Body Language' }
+                                                                                            ],
+                                                                      sports: [
+                                                                        { value: 'pitching', text: 'Pitching Stance' },
+                                                                        { value: 'batting', text: 'Batting Stance' },
+                                                                        { value: 'golf', text: 'Golf Swing' },
+                                                                        { value: 'basketball', text: 'Free Throw' }
+                                                                                            ],
+                                                                      fitness: [
+                                                                        { value: 'squat', text: 'Squat Form' },
+                                                                        { value: 'deadlift', text: 'Deadlift Form' },
+                                                                        { value: 'plank', text: 'Plank Position' },
+                                                                        { value: 'pushup', text: 'Push-up Form' }
+                                                                                            ],
+                                                                      presentation: [
+                                                                        { value: 'presentation', text: 'Presentation Stance' },
+                                                                        { value: 'interview', text: 'Interview Posture' },
+                                                                        { value: 'confident', text: 'Confident Speaker' }
+                                                                                            ]
+                                                };
+                                                this.referenceSelect.innerHTML = options[mode].map(o => 
+                                                                      `<option value="${o.value}">${o.text}</option>`
+                                                                                                                   ).join('');
+                              }
+
+                              changeReference(ref) {
+                                                this.addLog('session', 'Reference changed to ' + this.referenceSelect.options[this.referenceSelect.selectedIndex].text);
+                              }
+
+                              async detectLoop() {
+                                                if (!this.isRunning) return;
+                                                try {
+                                                                      const poses = await this.detector.estimatePoses(this.video);
+                                                                      if (poses.length > 0) {
+                                                                                                const pose = poses[0];
+                                                                                                this.poseHistory.push(pose);
+                                                                                                if (this.poseHistory.length > 10) this.poseHistory.shift();
+                                                                                                this.drawPose(pose);
+                                                                                                const metrics = this.calculateMetrics(pose);
+                                                                                                this.updateMetrics(metrics);
+                                                                                                this.provideCoaching(metrics);
+                                                                      }
+                                                                      this.updateAudioMetrics();
+                                                                      this.updateFPS();
+                                                                      this.updateChart();
+                                                } catch (error) {
+                                                                      console.error('Detection error:', error);
+                                                }
+                                                requestAnimationFrame(() => this.detectLoop());
+                              }
+
+                              drawPose(pose) {
+                                                const opacity = this.overlayOpacity.value / 100;
+                                                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                                                this.ctx.save();
+                                                this.ctx.scale(-1, 1);
+                                                this.ctx.translate(-this.canvas.width, 0);
+                                                const connections = [
+                                                                      ['left_shoulder', 'right_shoulder'],
+                                                                      ['left_shoulder', 'left_elbow'],
+                                                                      ['left_elbow', 'left_wrist'],
+                                                                      ['right_shoulder', 'right_elbow'],
+                                                                      ['right_elbow', 'right_wrist'],
+                                                                      ['left_shoulder', 'left_hip'],
+                                                                      ['right_shoulder', 'right_hip'],
+                                                                      ['left_hip', 'right_hip'],
+                                                                      ['left_hip', 'left_knee'],
+                                                                      ['left_knee', 'left_ankle'],
+                                                                      ['right_hip', 'right_knee'],
+                                                                      ['right_knee', 'right_ankle']
+                                                                  ];
+                                                const keypoints = {};
+                                                pose.keypoints.forEach(kp => keypoints[kp.name] = kp);
+                                                this.ctx.strokeStyle = `rgba(255, 107, 53, ${opacity})`;
+                                                this.ctx.lineWidth = 3;
+                                                connections.forEach(([start, end]) => {
+                                                                      const startKp = keypoints[start];
+                                                                      const endKp = keypoints[end];
+                                                                      if (startKp && endKp && startKp.score > 0.3 && endKp.score > 0.3) {
+                                                                                                this.ctx.beginPath();
+                                                                                                this.ctx.moveTo(startKp.x, startKp.y);
+                                                                                                this.ctx.lineTo(endKp.x, endKp.y);
+                                                                                                this.ctx.stroke();
+                                                                      }
+                                                });
+                                                pose.keypoints.forEach(kp => {
+                                                                      if (kp.score > 0.3) {
+                                                                                                this.ctx.beginPath();
+                                                                                                this.ctx.arc(kp.x, kp.y, 6, 0, 2 * Math.PI);
+                                                                                                this.ctx.fillStyle = `rgba(255, 107, 53, ${opacity})`;
+                                                                                                this.ctx.fill();
+                                                                                                this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                                                                                                this.ctx.lineWidth = 2;
+                                                                                                this.ctx.stroke();
+                                                                      }
+                                                });
+                                                this.ctx.restore();
+                              }
+
+                              calculateMetrics(pose) {
+                                                const keypoints = {};
+                                                pose.keypoints.forEach(kp => keypoints[kp.name] = kp);
+                                                let shoulderSymmetry = 50, hipAlignment = 50, spineAngle = 0, stability = 50;
+                                                const ls = keypoints['left_shoulder'];
+                                                const rs = keypoints['right_shoulder'];
+                                                if (ls && rs && ls.score > 0.3 && rs.score > 0.3) {
+                                                                      const yDiff = Math.abs(ls.y - rs.y);
+                                                                      shoulderSymmetry = Math.max(0, Math.min(100, 100 - (yDiff / 2)));
+                                                }
+                                                const lh = keypoints['left_hip'];
+                                                const rh = keypoints['right_hip'];
+                                                if (lh && rh && lh.score > 0.3 && rh.score > 0.3) {
+                                                                      const yDiff = Math.abs(lh.y - rh.y);
+                                                                      hipAlignment = Math.max(0, Math.min(100, 100 - (yDiff / 2)));
+                                                }
+                                                if (ls && rs && lh && rh) {
+                                                                      const shoulderCenter = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2 };
+                                                                      const hipCenter = { x: (lh.x + rh.x) / 2, y: (lh.y + rh.y) / 2 };
+                                                                      spineAngle = Math.atan2(shoulderCenter.x - hipCenter.x, hipCenter.y - shoulderCenter.y) * (180 / Math.PI);
+                                                }
+                                                if (this.poseHistory.length >= 5) {
+                                                                      let totalMovement = 0;
+                                                                      for (let i = 1; i < this.poseHistory.length; i++) {
+                                                                                                const prev = this.poseHistory[i-1].keypoints;
+                                                                                                const curr = this.poseHistory[i].keypoints;
+                                                                                                prev.forEach((kp, idx) => {
+                                                                                                                              if (kp.score > 0.3 && curr[idx].score > 0.3) {
+                                                                                                                                                                totalMovement += Math.sqrt(
+                                                                                                                                                                                                      Math.pow(curr[idx].x - kp.x, 2) + 
+                                                                                                                                                                                                      Math.pow(curr[idx].y - kp.y, 2)
+                                                                                                                                                                                                  );
+                                                                                                                                }
+                                                                                                  });
+                                                                      }
+                                                                      stability = Math.max(0, Math.min(100, 100 - (totalMovement / 50)));
+                                                }
+                                                return { shoulderSymmetry, hipAlignment, spineAngle, stability };
+                              }
+
+                              updateMetrics(metrics) {
+                                                const formatChange = (current, baseline, key) => {
+                                                                      if (!this.isCalibrated || !baseline) return '';
+                                                                      const diff = current - baseline[key];
+                                                                      if (Math.abs(diff) < 1) return '';
+                                                                      const sign = diff > 0 ? '+' : '';
+                                                                      const cls = diff > 0 ? 'positive' : 'negative';
+                                                                      return `<span class="metric-change ${cls}">${sign}${diff.toFixed(0)}</span>`;
+                                                };
+                                                document.getElementById('shoulderSymmetry').textContent = Math.round(metrics.shoulderSymmetry);
+                                                document.getElementById('shoulderChange').innerHTML = formatChange(metrics.shoulderSymmetry, this.baseline, 'shoulderSymmetry');
+                                                document.getElementById('hipAlignment').textContent = Math.round(metrics.hipAlignment);
+                                                document.getElementById('hipChange').innerHTML = formatChange(metrics.hipAlignment, this.baseline, 'hipAlignment');
+                                                document.getElementById('spineAngle').textContent = metrics.spineAngle.toFixed(1);
+                                                document.getElementById('spineChange').innerHTML = formatChange(metrics.spineAngle, this.baseline, 'spineAngle');
+                                                document.getElementById('stabilityScore').textContent = Math.round(metrics.stability);
+                                                const stabilityBar = document.getElementById('stabilityBar');
+                                                stabilityBar.style.width = metrics.stability + '%';
+                                                stabilityBar.className = 'progress-fill ' + this.getLevel(metrics.stability);
+                                                const avgPosture = (metrics.shoulderSymmetry + metrics.hipAlignment + metrics.stability) / 3;
+                                                const postureStatus = document.getElementById('postureStatus');
+                                                postureStatus.textContent = this.getLevel(avgPosture).toUpperCase();
+                                                postureStatus.className = 'metrics-status ' + this.getLevel(avgPosture);
+                                                this.historyData.stability.push(metrics.stability);
+                                                if (this.historyData.stability.length > this.maxHistoryPoints) {
+                                                                      this.historyData.stability.shift();
+                                                }
+                              }
+
+                              updateAudioMetrics() {
+                                                if (!this.analyser) return;
+                                                const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+                                                this.analyser.getByteFrequencyData(dataArray);
+                                                let sum = 0;
+                                                for (let i = 0; i < dataArray.length; i++) {
+                                                                      sum += dataArray[i];
+                                                }
+                                                const average = sum / dataArray.length;
+                                                const energy = Math.min(100, (average / 128) * 100);
+                                                const volume = average > 0 ? 20 * Math.log10(average / 255) + 100 : 0;
+                                                const steadiness = this.historyData.energy.length > 5 ? 
+                                                                      100 - Math.min(100, this.calculateVariance(this.historyData.energy.slice(-10)) * 2) : 50;
+                                                document.getElementById('energyLevel').textContent = Math.round(energy);
+                                                const energyBar = document.getElementById('energyBar');
+                                                energyBar.style.width = energy + '%';
+                                                energyBar.className = 'progress-fill ' + this.getLevel(energy);
+                                                document.getElementById('volumeLevel').textContent = Math.round(volume);
+                                                const volumeBar = document.getElementById('volumeBar');
+                                                volumeBar.style.width = Math.min(100, volume) + '%';
+                                                volumeBar.className = 'progress-fill ' + this.getLevel(volume);
+                                                document.getElementById('steadiness').textContent = Math.round(steadiness);
+                                                const voiceStatus = document.getElementById('voiceStatus');
+                                                const voiceLevel = energy > 30 ? 'high' : energy > 10 ? 'medium' : 'low';
+                                                voiceStatus.textContent = voiceLevel.toUpperCase();
+                                                voiceStatus.className = 'metrics-status ' + voiceLevel;
+                                                this.historyData.energy.push(energy);
+                                                if (this.historyData.energy.length > this.maxHistoryPoints) {
+                                                                      this.historyData.energy.shift();
+                                                }
+                              }
+
+                              calculateVariance(arr) {
+                                                if (arr.length === 0) return 0;
+                                                const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+                                                return Math.sqrt(arr.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / arr.length);
+                              }
+
+                              getLevel(value) {
+                                                if (value >= 70) return 'high';
+                                                if (value >= 40) return 'medium';
+                                                return 'low';
+                              }
+
+                              provideCoaching(metrics) {
+                                                const now = Date.now();
+                                                if (now - this.lastCoachingTime < this.coachingCooldown) return;
+                                                let tip = null;
+                                                if (metrics.shoulderSymmetry < 60) {
+                                                                      tip = { type: 'warning', text: 'Your shoulders appear uneven. Try to level them for better posture and balance.' };
+                                                } else if (metrics.hipAlignment < 60) {
+                                                                      tip = { type: 'warning', text: 'Your hips are tilted. Stand with equal weight on both feet to improve alignment.' };
+                                                } else if (Math.abs(metrics.spineAngle) > 15) {
+                                                                      tip = { type: 'warning', text: `You're leaning ${metrics.spineAngle > 0 ? 'right' : 'left'}. Center your weight for better balance.` };
+                                                } else if (metrics.stability < 50) {
+                                                                      tip = { type: 'warning', text: 'Try to minimize movement and maintain a steady position for better stability.' };
+                                                } else if (metrics.shoulderSymmetry > 85 && metrics.hipAlignment > 85 && metrics.stability > 75) {
+                                                                      tip = { type: 'success', text: 'Excellent posture! Your alignment and stability are looking great. Keep it up!' };
+                                                }
+                                                if (tip) {
+                                                                      this.addCoachingTip(tip.type, tip.text);
+                                                                      this.lastCoachingTime = now;
+                                                }
+                              }
+
+                              addCoachingTip(type, text) {
+                                                const iconMap = { success: '✅', warning: '⚠️', info: 'ℹ️' };
+                                                const tip = document.createElement('div');
+                                                tip.className = 'tip-item';
+                                                tip.innerHTML = `
+                                                                    <div class="tip-icon ${type}">${iconMap[type]}</div>
+                                                                                        <div>${text}</div>
+                                                                                                        `;
+                                                this.coachingTips.insertBefore(tip, this.coachingTips.firstChild);
+                                                while (this.coachingTips.children.length > 5) {
+                                                                      this.coachingTips.removeChild(this.coachingTips.lastChild);
+                                                }
+                              }
+
+                              clearTips() {
+                                                this.coachingTips.innerHTML = '';
+                                                this.addCoachingTip('info', 'Coaching tips cleared. New feedback will appear as you continue your session.');
+                              }
+
+                              addLog(type, message) {
+                                                const time = this.sessionStartTime ? 
+                                                                      ((Date.now() - this.sessionStartTime) / 1000).toFixed(1) + 's' : '0.0s';
+                                                const entry = document.createElement('div');
+                                                entry.className = 'log-entry';
+                                                entry.innerHTML = `
+                                                                    <span class="log-time">${time}</span>
+                                                                                        <span class="log-type ${type}">${type}</span>
+                                                                                                            <span>${message}</span>
+                                                                                                                            `;
+                                                this.sessionLog.insertBefore(entry, this.sessionLog.firstChild);
+                                                while (this.sessionLog.children.length > 20) {
+                                                                      this.sessionLog.removeChild(this.sessionLog.lastChild);
+                                                }
+                              }
+
+                              updateFPS() {
+                                                this.frameCount++;
+                                                const now = Date.now();
+                                                if (now - this.lastFpsTime >= 1000) {
+                                                                      this.fps = this.frameCount;
+                                                                      this.frameCount = 0;
+                                                                      this.lastFpsTime = now;
+                                                                      this.fpsCounter.textContent = this.fps;
+                                                }
+                              }
+
+                              updateChart() {
+                                                const canvas = this.historyChart;
+                                                const ctx = this.chartCtx;
+                                                const width = canvas.width = canvas.offsetWidth * 2;
+                                                const height = canvas.height = canvas.offsetHeight * 2;
+                                                ctx.clearRect(0, 0, width, height);
+                                                ctx.fillStyle = '#12121a';
+                                                ctx.fillRect(0, 0, width, height);
+                                                ctx.strokeStyle = '#2a2a3a';
+                                                ctx.lineWidth = 1;
+                                                for (let i = 0; i <= 4; i++) {
+                                                                      const y = (height / 4) * i;
+                                                                      ctx.beginPath();
+                                                                      ctx.moveTo(0, y);
+                                                                      ctx.lineTo(width, y);
+                                                                      ctx.stroke();
+                                                }
+                                                const drawLine = (data, color) => {
+                                                                      if (data.length < 2) return;
+                                                                      ctx.strokeStyle = color;
+                                                                      ctx.lineWidth = 3;
+                                                                      ctx.beginPath();
+                                                                      const step = width / (this.maxHistoryPoints - 1);
+                                                                      data.forEach((value, i) => {
+                                                                                                const x = i * step;
+                                                                                                const y = height - (value / 100) * height;
+                                                                                                if (i === 0) ctx.moveTo(x, y);
+                                                                                                else ctx.lineTo(x, y);
+                                                                      });
+                                                                      ctx.stroke();
+                                                };
+                                                drawLine(this.historyData.stability, '#ff6b35');
+                                                drawLine(this.historyData.energy, '#22c55e');
+                              }
+
+                              setStatus(status, text) {
+                                                this.statusDot.className = 'status-dot ' + status;
+                                                this.statusText.textContent = text;
+                              }
+                }
+
+                // Initialize application
+                document.addEventListener('DOMContentLoaded', () => {
+                              window.visionAI = new VisionAIPro();
+                });
+      </script>
+  </body>
+</html>html>
+      </script></strong>
+                                              </div>
+              </div></span></span>
+  </body>
+      </style></title>
+  </head>
